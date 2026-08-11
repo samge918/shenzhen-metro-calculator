@@ -297,7 +297,6 @@ function dijkstra(start, end) {
     var dist = {}, prev = {}, prevLine = {}, visited = {};
     for (var s in GRAPH) dist[s] = Infinity;
     dist[start] = 0;
-    prevLine[start] = null;
     var pq = [{station: start, d: 0, line: null}];
 
     while (pq.length > 0) {
@@ -338,10 +337,20 @@ function dijkstra(start, end) {
         } else if (at === start) {
             lines.unshift(null);
         } else if (lines.length > 0) {
-            // 补齐终点站的线路（使用前面到达该站前一条线路）
             lines.unshift(lines[0]);
         }
         at = prev[at];
+    }
+
+    // 修正换乘站：起点=null保持，其它的站：如果 i>0 且 lines[i] !== lines[i-1]，设为 lines[i-1]（上一个站走的线）
+    // 但这样起点站和终点站下标就是null或相等。简化：起点站保持null，其它的站用 lines[i-1]（上一站走过的线）
+    var displayLines = [];
+    for (var i = 0; i < path.length; i++) {
+        if (i === 0) {
+            displayLines.push(null);  // 起点站
+        } else {
+            displayLines.push(lines[i - 1]);  // 以本站到下一站这条线为展示
+        }
     }
 
     var transfers = [];
@@ -351,7 +360,7 @@ function dijkstra(start, end) {
         }
     }
 
-    return {path: path, time: dist[end], lines: lines, transfers: transfers, transferCount: transfers.length};
+    return {path: path, time: dist[end], lines: lines, displayLines: displayLines, transfers: transfers, transferCount: transfers.length};
 }
 
 function calculateRoute() {
@@ -395,7 +404,7 @@ function calculateRoute() {
     html += '<div class="path-viz"><h3>详细路径</h3>';
     for (var i = 0; i < result.path.length; i++) {
         var station = result.path[i];
-        var line = result.lines[i];
+        var line = (typeof result.displayLines !== 'undefined' && result.displayLines) ? result.displayLines[i] : null;
         var isTransfer = result.transfers.some(function(t) { return t.station === station; });
         var isStart = i === 0;
         var isEnd = i === result.path.length - 1;
@@ -413,7 +422,7 @@ function calculateRoute() {
         }
         html += '</div>';
 
-        html += '<span class="station-line">' + (LINE_NAMES[line] || line) + '</span></div>';
+        html += '<span class="station-line">' + (line ? (LINE_NAMES[line] || line) : '—') + '</span></div>';
 
         if (i < result.path.length - 1) {
             html += '<div class="path-arrow">↓</div>';
