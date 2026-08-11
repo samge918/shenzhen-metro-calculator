@@ -333,7 +333,14 @@ function dijkstra(start, end) {
     var path = [], lines = [], at = end;
     while (at !== undefined) {
         path.unshift(at);
-        if (prevLine[at]) lines.unshift(prevLine[at]);
+        if (prevLine[at]) {
+            lines.unshift(prevLine[at]);
+        } else if (at === start) {
+            lines.unshift(null);
+        } else if (lines.length > 0) {
+            // 补齐终点站的线路（使用前面到达该站前一条线路）
+            lines.unshift(lines[0]);
+        }
         at = prev[at];
     }
 
@@ -406,7 +413,7 @@ function calculateRoute() {
         }
         html += '</div>';
 
-        html += '<span class="station-line">' + LINE_NAMES[line] + '</span></div>';
+        html += '<span class="station-line">' + (LINE_NAMES[line] || line) + '</span></div>';
 
         if (i < result.path.length - 1) {
             html += '<div class="path-arrow">↓</div>';
