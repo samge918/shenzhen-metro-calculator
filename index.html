@@ -3,6 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="robots" content="noindex, nofollow">
+<meta name="author" content="深广GK数据库">
+<meta name="copyright" content="© 2026 深广GK数据库 版权所有">
 <title>深圳地铁通勤计算器</title>
 <style>
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
@@ -548,6 +551,37 @@ setupSearch();
 
 document.getElementById("calc-btn").addEventListener("click", calculateRoute);
 document.getElementById("swap-btn").addEventListener("click", swapStations);
+
+// 防盗保护
+(function() {
+    // 禁用右键菜单
+    document.addEventListener('contextmenu', function(e) {
+        e.preventDefault();
+        alert('版权所有 © 深广GK数据库，禁止复制');
+    });
+    
+    // 禁用F12开发者工具
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'F12' || (e.ctrlKey && e.shiftKey && e.key === 'I') || (e.ctrlKey && e.shiftKey && e.key === 'J') || (e.ctrlKey && e.key === 'U')) {
+            e.preventDefault();
+            alert('版权所有 © 深广GK数据库，禁止查看源码');
+        }
+    });
+    
+    // 检测开发者工具打开
+    var devtools = {open: false};
+    var threshold = 160;
+    setInterval(function() {
+        if (window.outerWidth - window.innerWidth > threshold || window.outerHeight - window.innerHeight > threshold) {
+            if (!devtools.open) {
+                devtools.open = true;
+                document.body.innerHTML = '<div style="text-align:center;padding:100px 20px;font-size:18px;color:#666;"><h2>⚠️ 检测到开发者工具</h2><p>版权所有 © 深广GK数据库</p><p>请关闭开发者工具后刷新页面</p></div>';
+            }
+        } else {
+            devtools.open = false;
+        }
+    }, 500);
+})();
 </script>
 </body>
 </html>
