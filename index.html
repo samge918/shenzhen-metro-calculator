@@ -1,0 +1,552 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>深圳地铁通勤计算器</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Microsoft YaHei",sans-serif;background:#f5f5f5;padding:0;overflow-x:hidden}
+.container{display:flex;min-height:100vh}
+.left-panel{width:420px;background:#fff;border-right:1px solid #ddd;overflow-y:auto;display:flex;flex-direction:column}
+.left-header{background:#2b5797;color:#fff;padding:12px;position:sticky;top:0;z-index:10}
+.left-header h1{font-size:16px;margin-bottom:8px}
+.search-box{position:relative}
+.search-box input{width:100%;padding:10px 12px;border:none;border-radius:6px;font-size:16px}
+.search-suggest{position:absolute;top:100%;left:0;right:0;background:#fff;border:1px solid #ddd;border-top:none;max-height:250px;overflow-y:auto;display:none;z-index:20;border-radius:0 0 6px 6px;box-shadow:0 4px 12px rgba(0,0,0,0.15)}
+.search-suggest.show{display:block}
+.suggest-item{padding:12px 14px;cursor:pointer;font-size:15px;border-bottom:1px solid #f0f0f0}
+.suggest-item:last-child{border-bottom:none}
+.suggest-item:active{background:#f0f0f0}
+.suggest-item .line-badge{display:inline-block;padding:2px 8px;border-radius:3px;font-size:11px;margin-left:8px;color:#fff}
+.lines-list{flex:1;overflow-y:auto;padding:10px}
+.line-section{margin-bottom:10px;border:1px solid #e0e0e0;border-radius:8px;overflow:hidden}
+.line-header{padding:12px 14px;font-weight:bold;font-size:15px;cursor:pointer;display:flex;align-items:center;gap:10px;user-select:none;background:#fafafa}
+.line-header:active{background:#f0f0f0}
+.line-header .line-dot{width:14px;height:14px;border-radius:50%;flex-shrink:0}
+.line-header .expand-icon{margin-left:auto;font-size:12px;color:#888;transition:transform 0.2s}
+.line-header.collapsed .expand-icon{transform:rotate(-90deg)}
+.line-stations{padding:10px;background:#fff;display:flex;flex-wrap:wrap;gap:8px}
+.line-stations.hidden{display:none}
+.station-btn{padding:8px 14px;background:#f5f5f5;border:1px solid #ddd;border-radius:6px;cursor:pointer;font-size:14px;transition:all 0.2s;touch-action:manipulation}
+.station-btn:active{background:#e0e0e0;transform:scale(0.98)}
+.station-btn.transfer{border-color:#e67e22;border-width:2px;font-weight:bold}
+.station-btn.selected-from{background:#2b5797;color:#fff;border-color:#2b5797}
+.station-btn.selected-to{background:#e67e22;color:#fff;border-color:#e67e22}
+.station-btn .transfer-icon{font-size:11px;margin-left:4px;opacity:0.7}
+.right-panel{flex:1;display:flex;flex-direction:column;background:#fff}
+.right-header{background:#f9f9f9;padding:12px;border-bottom:1px solid #eee}
+.right-header h2{font-size:15px;color:#333;margin-bottom:4px}
+.right-header p{font-size:12px;color:#888}
+.ctrl-card{padding:14px;border-bottom:1px solid #eee}
+.ctrl-card label{display:block;font-size:13px;color:#666;margin-bottom:6px;margin-top:10px}
+.ctrl-card input{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:6px;font-size:15px;background:#fff}
+.station-input-group{position:relative}
+.station-input-group .station-suggest{position:absolute;top:100%;left:0;right:0;background:#fff;border:1px solid #ddd;max-height:200px;overflow-y:auto;display:none;z-index:10}
+.station-input-group .station-suggest.show{display:block}
+.btn-row{display:flex;gap:10px;margin-top:12px}
+.btn-row button{flex:1;padding:12px;border:1px solid #ddd;border-radius:6px;cursor:pointer;font-size:15px;font-weight:500;touch-action:manipulation}
+.btn-row .calc-btn{background:#2b5797;color:#fff;border:none}
+.btn-row .calc-btn:active{background:#1a3d6e}
+.btn-row .swap-btn{background:#fff}
+.btn-row .swap-btn:active{background:#f5f5f5}
+.result-card{flex:1;overflow-y:auto;padding:16px}
+.result-card.empty{display:flex;align-items:center;justify-content:center;color:#999;font-size:15px;text-align:center;padding:40px 20px}
+.result-time{font-size:52px;color:#2b5797;font-weight:bold}
+.result-meta{margin-top:14px;display:flex;flex-wrap:wrap;gap:10px}
+.meta-tag{padding:8px 14px;background:#f0f0f0;border-radius:6px;font-size:14px;color:#666}
+.meta-tag.transfer{background:#fff3cd;color:#e67e22;border:1px solid #ffeaa7}
+.path-viz{margin-top:20px;border-top:1px solid #eee;padding-top:20px}
+.path-viz h3{font-size:15px;color:#333;margin-bottom:14px}
+.path-station{padding:10px 0;border-bottom:1px solid #f0f0f0;display:flex;align-items:center;gap:10px}
+.path-station:last-child{border-bottom:none}
+.path-station.transfer{background:#fff8e1;margin:8px -14px;padding:10px 14px;border-radius:6px;border:none}
+.station-icon{width:28px;height:28px;border-radius:50%;background:#fff;border:2px solid #555;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:bold;flex-shrink:0}
+.station-icon.start{background:#2b5797;border-color:#2b5797;color:#fff}
+.station-icon.end{background:#e67e22;border-color:#e67e22;color:#fff}
+.station-icon.transfer{border-color:#e67e22;background:#fff8e1}
+.station-name{font-size:15px}
+.station-line{font-size:12px;color:#888;margin-left:auto}
+.transfer-info{font-size:13px;color:#e67e22;margin-top:4px;padding-left:38px}
+.path-arrow{text-align:center;color:#ccc;font-size:20px;padding:6px 0}
+.footer{padding:12px;text-align:center;font-size:11px;color:#aaa;border-top:1px solid #eee;background:#fafafa}
+
+.promo-floating{position:fixed;bottom:15px;right:15px;width:280px;background:#fff;border-radius:10px;box-shadow:0 4px 20px rgba(0,0,0,0.25);overflow:hidden;z-index:1000;transition:all 0.3s}
+.promo-floating img{width:100%;display:block}
+.promo-close{position:absolute;top:5px;right:5px;width:24px;height:24px;border-radius:50%;background:rgba(0,0,0,0.5);color:#fff;border:none;cursor:pointer;font-size:14px;display:flex;align-items:center;justify-content:center;line-height:1}
+.promo-close:hover{background:rgba(0,0,0,0.7)}
+
+@media (max-width: 768px) {
+.container{flex-direction:column}
+.left-panel{width:100%;max-height:50vh;border-right:none;border-bottom:1px solid #ddd}
+.right-panel{min-height:50vh}
+.result-time{font-size:42px}
+.station-btn{padding:10px 16px;font-size:15px}
+.line-header{padding:14px 16px;font-size:16px}
+.btn-row button{padding:14px;font-size:16px}
+.promo-floating{width:220px;bottom:10px;right:10px}
+}
+
+@media (max-width: 400px) {
+.station-btn{padding:8px 12px;font-size:13px}
+.result-time{font-size:36px}
+.promo-floating{width:180px;bottom:8px;right:8px}
+}
+</style>
+</head>
+<body>
+<div class="container">
+<div class="left-panel">
+<div class="left-header">
+<h1>深圳地铁通勤计算器</h1>
+<div class="search-box">
+<input type="text" id="global-search" placeholder="搜索站点名，点击选择">
+<div class="search-suggest" id="search-suggest"></div>
+</div>
+</div>
+<div class="lines-list" id="lines-list"></div>
+</div>
+
+<div class="right-panel">
+<div class="right-header">
+<h2>路线规划</h2>
+<p>点击站点选起点终点，再点已选站点可清空</p>
+</div>
+<div class="ctrl-card">
+<label>出发站</label>
+<div class="station-input-group">
+<input type="text" id="from-station" placeholder="点击左侧选择或输入站名">
+<div class="station-suggest" id="from-suggest"></div>
+</div>
+<label>到达站</label>
+<div class="station-input-group">
+<input type="text" id="to-station" placeholder="点击左侧选择或输入站名">
+<div class="station-suggest" id="to-suggest"></div>
+</div>
+<div class="btn-row">
+<button class="calc-btn" id="calc-btn">计算路线</button>
+<button class="swap-btn" id="swap-btn">↕ 交换</button>
+</div>
+</div>
+<div class="result-card empty" id="result-card">
+请选择起点和终点站
+</div>
+<div class="footer">通勤时间 = 站数 × 2分钟 + 换乘 × 5分钟 | 数据：深圳地铁2025</div>
+</div>
+</div>
+
+<div class="promo-floating" id="promo">
+<button class="promo-close" onclick="document.getElementById('promo').style.display='none'">×</button>
+<img src="promo.png" alt="关注公众号 深广GK数据库">
+</div>
+
+<script>
+var STATION_TIME = 2;
+var TRANSFER_PENALTY = 5;
+var LINES = {"1": [["罗湖", 200, 700], ["国贸", 220, 680], ["老街", 240, 660], ["大剧院", 260, 640], ["科学馆", 280, 620], ["华强路", 300, 600], ["岗厦", 320, 580], ["会展中心", 340, 560], ["购物公园", 360, 540], ["香蜜湖", 380, 520], ["车公庙", 400, 500], ["竹子林", 420, 480], ["侨城东", 440, 460], ["华侨城", 460, 440], ["世界之窗", 480, 420], ["白石洲", 500, 400], ["高新园", 520, 380], ["深大", 540, 360], ["桃园", 560, 340], ["大新", 580, 320], ["鲤鱼门", 600, 300], ["前海湾", 620, 280], ["新安", 640, 260], ["宝安中心", 660, 240], ["宝体", 680, 220], ["坪洲", 700, 200], ["西乡", 720, 180], ["固戍", 740, 160], ["后瑞", 760, 140], ["机场东", 780, 120]], "2": [["赤湾", 100, 800], ["蛇口港", 120, 780], ["海上世界", 140, 760], ["水湾", 160, 740], ["东角头", 180, 720], ["湾厦", 200, 700], ["海月", 220, 680], ["登良", 240, 660], ["后海", 260, 640], ["科苑", 280, 620], ["红树湾", 300, 600], ["世界之窗", 480, 420], ["侨城北", 500, 400], ["深康", 520, 380], ["安托山", 540, 360], ["侨香", 560, 340], ["香蜜", 580, 320], ["香梅北", 600, 300], ["景田", 620, 280], ["莲花西", 640, 260], ["福田", 660, 240], ["市民中心", 680, 220], ["岗厦北", 700, 200], ["华强北", 720, 180], ["燕南", 740, 160], ["大剧院", 260, 640], ["湖贝", 280, 660], ["黄贝岭", 300, 680], ["新秀", 320, 700]], "3": [["福保", 660, 240], ["益田", 680, 260], ["石厦", 700, 280], ["购物公园", 360, 540], ["福田", 660, 240], ["少年宫", 680, 220], ["莲花村", 700, 200], ["华新", 720, 180], ["通新岭", 740, 160], ["红岭", 760, 140], ["老街", 240, 660], ["晒布", 260, 680], ["翠竹", 280, 700], ["田贝", 300, 720], ["水贝", 320, 740], ["草埔", 340, 760], ["布吉", 360, 780], ["木棉湾", 380, 800], ["大芬", 400, 820], ["丹竹头", 420, 840], ["六约", 440, 860], ["塘坑", 460, 880], ["横岗", 480, 900], ["永湖", 500, 920], ["荷坳", 520, 940], ["大运", 540, 960], ["爱联", 560, 980], ["吉祥", 580, 1000], ["龙城广场", 600, 1020], ["南联", 620, 1040], ["双龙", 640, 1060]], "4": [["福田口岸", 700, 200], ["福民", 720, 220], ["会展中心", 340, 560], ["市民中心", 680, 220], ["少年宫", 680, 220], ["莲花北", 660, 200], ["上梅林", 640, 180], ["民乐", 620, 160], ["白石龙", 600, 140], ["深圳北站", 580, 120], ["红山", 560, 100], ["上塘", 540, 80], ["龙胜", 520, 60], ["龙华", 500, 40], ["清湖", 480, 20], ["清湖北", 460, 0], ["竹村", 440, -20], ["茜坑", 420, -40], ["长湖", 400, -60], ["观澜", 380, -80], ["松元厦", 360, -100], ["观澜湖", 340, -120], ["牛湖", 320, -140]], "5": [["赤湾", 100, 800], ["荔湾", 120, 780], ["铁路公园", 140, 760], ["妈湾", 160, 740], ["前湾公园", 180, 720], ["前湾", 200, 700], ["桂湾", 220, 680], ["前海湾", 620, 280], ["宝安中心", 660, 240], ["翻身", 680, 220], ["灵芝", 700, 200], ["洪浪北", 720, 180], ["兴东", 740, 160], ["留仙洞", 760, 140], ["西丽", 780, 120], ["大学城", 800, 100], ["塘朗", 820, 80], ["长岭陂", 840, 60], ["深圳北站", 580, 120], ["民治", 560, 100], ["五和", 540, 80], ["坂田", 520, 60], ["杨美", 500, 40], ["上水径", 480, 20], ["下水径", 460, 0], ["长龙", 440, -20], ["布吉", 360, 780], ["百鸽笼", 380, 800], ["布心", 400, 820], ["太安", 420, 840], ["怡景", 440, 860], ["黄贝岭", 300, 680]], "6": [["科学馆", 280, 620], ["通新岭", 300, 600], ["体育中心", 320, 580], ["八卦岭", 340, 560], ["银湖", 360, 540], ["翰岭", 380, 520], ["梅林关", 400, 500], ["深圳北站", 580, 120], ["红山", 560, 100], ["上芬", 540, 80], ["元芬", 520, 60], ["阳台山东", 500, 40], ["官田", 480, 20], ["上屋", 460, 0], ["长圳", 440, -20], ["凤凰城", 420, -40], ["光明大街", 400, -60], ["光明", 380, -80], ["科学公园", 360, -100], ["楼村", 340, -120], ["红花山", 320, -140], ["公明广场", 300, -160], ["合水口", 280, -180], ["薯田埔", 260, -200], ["松岗公园", 240, -220], ["松岗", 220, -240]], "6支": [["光明", 380, -80], ["圳美", 400, -100], ["中大", 420, -120], ["深理工", 440, -140]], "7": [["西丽湖", 800, 100], ["西丽", 780, 120], ["茶光", 760, 140], ["珠光", 740, 160], ["龙井", 720, 180], ["桃源村", 700, 200], ["深云", 680, 220], ["安托山", 540, 360], ["农林", 520, 380], ["车公庙", 400, 500], ["上沙", 380, 520], ["沙尾", 360, 540], ["石厦", 700, 280], ["皇岗村", 720, 300], ["福民", 720, 220], ["皇岗口岸", 740, 320], ["福邻", 760, 340], ["赤尾", 780, 360], ["华强南", 800, 380], ["华强北", 720, 180], ["华新", 740, 200], ["黄木岗", 760, 220], ["八卦岭", 340, 560], ["红岭北", 780, 400], ["笋岗", 800, 420], ["洪湖", 820, 440], ["田贝", 300, 720], ["太安", 420, 840]], "8": [["梧桐山南", 200, 800], ["沙头角", 220, 820], ["海山", 240, 840], ["盐田港西", 260, 860], ["深外高中", 280, 880], ["盐田路", 300, 900], ["鸿安围", 320, 920], ["北山道", 340, 940], ["盐田食街", 360, 960], ["大梅沙", 380, 980], ["小梅沙", 400, 1000]], "9": [["前湾", 200, 700], ["梦海", 220, 680], ["怡海", 240, 660], ["荔林", 260, 640], ["南油西", 280, 620], ["南油", 300, 600], ["南山书城", 320, 580], ["深大南", 340, 560], ["粤海门", 360, 540], ["科苑", 280, 620], ["深大", 540, 360], ["高新园", 520, 380], ["白石洲", 500, 400], ["世界之窗", 480, 420], ["侨城东", 440, 460], ["竹子林", 420, 480], ["车公庙", 400, 500], ["下沙", 380, 520], ["沙尾", 360, 540], ["上沙", 380, 520], ["下梅林", 620, 280], ["梅景", 600, 300], ["梅村", 580, 320], ["香梅", 560, 340], ["景田", 620, 280], ["莲花西", 640, 260], ["市民中心", 680, 220], ["福田", 660, 240]], "10": [["福田口岸", 700, 200], ["福民", 720, 220], ["会展中心", 340, 560], ["岗厦北", 700, 200], ["莲花村", 700, 200], ["冬瓜岭", 680, 180], ["孖岭", 660, 160], ["雅宝", 640, 140], ["南坑", 620, 120], ["光雅园", 600, 100], ["五和", 540, 80], ["坂田北", 520, 60], ["贝尔路", 500, 40], ["华为", 480, 20], ["岗头", 460, 0], ["雪象", 440, -20], ["甘坑", 420, -40]], "11": [["岗厦北", 700, 200], ["福星", 720, 220], ["华强南", 800, 380], ["红岭南", 740, 240], ["南山", 260, 640], ["前海湾", 620, 280], ["宝安", 640, 260], ["碧海湾", 660, 240], ["机场", 680, 220], ["机场北", 700, 200], ["福永", 720, 180], ["桥头", 740, 160], ["塘尾", 760, 140], ["马安山", 780, 120], ["沙井", 800, 100], ["后亭", 820, 80], ["松岗", 220, -240]], "12": [["左炮台东", 80, 820], ["太子湾", 100, 800], ["海上世界", 140, 760], ["花果山", 160, 740], ["四海", 180, 720], ["南油", 300, 600], ["南光", 320, 580], ["南山", 260, 640], ["桃园", 560, 340], ["南头古城", 580, 320], ["中山公园", 600, 300], ["同乐南", 620, 280], ["新安公园", 640, 260], ["灵芝", 700, 200], ["上川", 720, 180], ["流塘", 740, 160], ["宝安客运站", 760, 140], ["宝田一路", 780, 120], ["平峦山", 800, 100], ["西乡", 720, 180], ["钟屋", 820, 80], ["黄田", 840, 60], ["兴围", 860, 40], ["机场东", 780, 120], ["福围", 880, 20], ["怀德", 900, 0], ["福永", 720, 180], ["桥头西", 920, -20], ["福海西", 940, -40], ["海上田园南", 960, -60], ["海上田园东", 980, -80], ["蚝乡", 1000, -100], ["沙蚝", 1020, -120], ["沙井古墟", 1040, -140], ["步涌", 1060, -160], ["朗下", 1080, -180], ["松岗", 220, -240]], "13": [["深圳湾口岸", 280, 620], ["后海", 260, 640], ["科苑", 280, 620], ["粤海门", 360, 540], ["深大", 540, 360], ["高新中", 560, 340]], "14": [["岗厦北", 700, 200], ["黄木岗", 760, 220], ["罗湖北", 780, 240], ["布吉", 360, 780], ["石芽岭", 380, 800], ["六约北", 400, 820], ["四联", 420, 840], ["坳背", 440, 860], ["大运", 540, 960], ["嶂背", 560, 980], ["南约", 580, 1000], ["宝龙", 600, 1020], ["锦龙", 620, 1040], ["坪山广场", 640, 1060], ["坪山中心", 660, 1080], ["坑梓", 680, 1100], ["沙田", 700, 1120]], "16": [["大运", 540, 960], ["大运中心", 560, 980], ["龙城公园", 580, 1000], ["黄阁坑", 600, 1020], ["愉园", 620, 1040], ["回龙埔", 640, 1060], ["尚景", 660, 1080], ["盛平", 680, 1100], ["龙园", 700, 1120], ["双龙", 640, 1060], ["新塘围", 660, 1080], ["龙东", 680, 1100], ["宝龙同乐", 700, 1120], ["坪山", 720, 1140], ["六和", 740, 1160], ["新和", 760, 1180], ["坪山围", 780, 1200], ["六联", 800, 1220], ["技术大学", 820, 1240], ["田心", 840, 1260]], "20": [["会展城", 880, 20], ["国展南", 900, 0], ["国展", 920, -20], ["国展北", 940, -40], ["机场北", 700, 200]]};
+var LINE_NAMES = {"1": "1号线", "2": "2号线", "3": "3号线", "4": "4号线", "5": "5号线", "6": "6号线", "6支": "6号线支线", "7": "7号线", "8": "8号线", "9": "9号线", "10": "10号线", "11": "11号线", "12": "12号线", "13": "13号线", "14": "14号线", "16": "16号线", "20": "20号线"};
+var LINE_COLORS = {"1": "#00B140", "2": "#FF6600", "3": "#00A0E9", "4": "#E60012", "5": "#993399", "6": "#00BFFF", "6支": "#00BFFF", "7": "#0033CC", "8": "#FFCC00", "9": "#9966CC", "10": "#FF6699", "11": "#660066", "12": "#99CC33", "13": "#FF9933", "14": "#FFCC33", "16": "#339966", "20": "#0066CC"};
+var TRANSFER_STATIONS = {"老街": ["1", "3"], "大剧院": ["1", "2"], "科学馆": ["1", "6"], "会展中心": ["1", "4", "10"], "购物公园": ["1", "3"], "车公庙": ["1", "7", "9"], "竹子林": ["1", "9"], "侨城东": ["1", "9"], "世界之窗": ["1", "2", "9"], "白石洲": ["1", "9"], "高新园": ["1", "9"], "深大": ["1", "9", "13"], "桃园": ["1", "12"], "前海湾": ["1", "5", "11"], "宝安中心": ["1", "5"], "西乡": ["1", "12"], "机场东": ["1", "12"], "赤湾": ["2", "5"], "海上世界": ["2", "12"], "后海": ["2", "13"], "科苑": ["2", "9", "13"], "安托山": ["2", "7"], "景田": ["2", "9"], "莲花西": ["2", "9"], "福田": ["2", "3", "9"], "市民中心": ["2", "4", "9"], "岗厦北": ["2", "10", "11", "14"], "华强北": ["2", "7"], "黄贝岭": ["2", "5"], "石厦": ["3", "7"], "少年宫": ["3", "4"], "莲花村": ["3", "10"], "华新": ["3", "7"], "通新岭": ["3", "6"], "田贝": ["3", "7"], "布吉": ["3", "5", "14"], "大运": ["3", "14", "16"], "双龙": ["3", "16"], "福田口岸": ["4", "10"], "福民": ["4", "7", "10"], "深圳北站": ["4", "5", "6"], "红山": ["4", "6"], "前湾": ["5", "9"], "灵芝": ["5", "12"], "西丽": ["5", "7"], "五和": ["5", "10"], "太安": ["5", "7"], "八卦岭": ["6", "7"], "光明": ["6", "6支"], "松岗": ["6", "11", "12"], "上沙": ["7", "9"], "沙尾": ["7", "9"], "华强南": ["7", "11"], "黄木岗": ["7", "14"], "南油": ["9", "12"], "粤海门": ["9", "13"], "南山": ["11", "12"], "机场北": ["11", "20"], "福永": ["11", "12"]};
+
+var STATION_POS = {};
+var GRAPH = {};
+
+function buildGraph() {
+    var lineIds = Object.keys(LINES);
+    for (var i = 0; i < lineIds.length; i++) {
+        var lineId = lineIds[i];
+        var stations = LINES[lineId];
+        for (var j = 0; j < stations.length; j++) {
+            var s = stations[j];
+            var name = s[0];
+            if (!STATION_POS[name]) {
+                STATION_POS[name] = {lines: [lineId]};
+            } else {
+                var found = false;
+                for (var k = 0; k < STATION_POS[name].lines.length; k++) {
+                    if (STATION_POS[name].lines[k] === lineId) { found = true; break; }
+                }
+                if (!found) STATION_POS[name].lines.push(lineId);
+            }
+        }
+        for (var m = 0; m < stations.length - 1; m++) {
+            var n1 = stations[m][0], n2 = stations[m + 1][0];
+            if (!GRAPH[n1]) GRAPH[n1] = {};
+            if (!GRAPH[n2]) GRAPH[n2] = {};
+            if (!GRAPH[n1][n2]) GRAPH[n1][n2] = [];
+            if (!GRAPH[n2][n1]) GRAPH[n2][n1] = [];
+            GRAPH[n1][n2].push(lineId);
+            GRAPH[n2][n1].push(lineId);
+        }
+    }
+}
+
+function renderLinesList() {
+    var container = document.getElementById("lines-list");
+    var html = "";
+    var lineIds = Object.keys(LINES);
+
+    for (var i = 0; i < lineIds.length; i++) {
+        var lineId = lineIds[i];
+        var color = LINE_COLORS[lineId] || "#999";
+        var stations = LINES[lineId];
+        
+        html += '<div class="line-section">';
+        html += '<div class="line-header" data-line="' + lineId + '">';
+        html += '<span class="line-dot" style="background:' + color + '"></span>';
+        html += '<span>' + LINE_NAMES[lineId] + '</span>';
+        html += '<span class="expand-icon">▼</span>';
+        html += '</div>';
+        html += '<div class="line-stations" data-line="' + lineId + '">';
+        
+        for (var j = 0; j < stations.length; j++) {
+            var sName = stations[j][0];
+            var isTransfer = TRANSFER_STATIONS[sName] && TRANSFER_STATIONS[sName].length > 1;
+            html += '<button class="station-btn' + (isTransfer ? ' transfer' : '') + '" data-name="' + sName + '">';
+            html += sName;
+            if (isTransfer) html += '<span class="transfer-icon">⟳</span>';
+            html += '</button>';
+        }
+        
+        html += '</div></div>';
+    }
+    
+    container.innerHTML = html;
+    attachLineEvents();
+}
+
+function attachLineEvents() {
+    var headers = document.querySelectorAll(".line-header");
+    for (var i = 0; i < headers.length; i++) {
+        headers[i].addEventListener("click", function() {
+            var lineId = this.getAttribute("data-line");
+            var stations = document.querySelector(".line-stations[data-line='" + lineId + "']");
+            if (this.classList.contains("collapsed")) {
+                this.classList.remove("collapsed");
+                stations.classList.remove("hidden");
+            } else {
+                this.classList.add("collapsed");
+                stations.classList.add("hidden");
+            }
+        });
+    }
+
+    var btns = document.querySelectorAll(".station-btn");
+    for (var i = 0; i < btns.length; i++) {
+        btns[i].addEventListener("click", function() {
+            var name = this.getAttribute("data-name");
+            handleStationClick(name);
+        });
+    }
+}
+
+function handleStationClick(stationName) {
+    var fromInput = document.getElementById("from-station");
+    var toInput = document.getElementById("to-station");
+    var fromValue = fromInput.value;
+    var toValue = toInput.value;
+    
+    if (stationName === fromValue) {
+        fromInput.value = "";
+        if (!toValue) {
+            document.getElementById("result-card").className = "result-card empty";
+            document.getElementById("result-card").innerHTML = "请选择起点和终点站";
+        }
+    } else if (stationName === toValue) {
+        toInput.value = "";
+        document.getElementById("result-card").className = "result-card empty";
+        document.getElementById("result-card").innerHTML = "请选择终点站";
+    } else if (!fromValue) {
+        fromInput.value = stationName;
+    } else if (!toValue) {
+        toInput.value = stationName;
+        calculateRoute();
+    } else {
+        fromInput.value = stationName;
+        toInput.value = "";
+        document.getElementById("result-card").className = "result-card empty";
+        document.getElementById("result-card").innerHTML = "请选择终点站";
+    }
+    
+    updateStationHighlight();
+}
+
+function updateStationHighlight() {
+    var from = document.getElementById("from-station").value;
+    var to = document.getElementById("to-station").value;
+    var btns = document.querySelectorAll(".station-btn");
+    
+    for (var i = 0; i < btns.length; i++) {
+        var name = btns[i].getAttribute("data-name");
+        btns[i].classList.remove("selected-from", "selected-to");
+        if (name === from) {
+            btns[i].classList.add("selected-from");
+        } else if (name === to) {
+            btns[i].classList.add("selected-to");
+        }
+    }
+}
+
+function dijkstra(start, end) {
+    if (!GRAPH[start] || !GRAPH[end]) return null;
+    
+    var dist = {}, prev = {}, prevLine = {}, visited = {};
+    for (var s in GRAPH) dist[s] = Infinity;
+    dist[start] = 0;
+    prevLine[start] = null;
+    var pq = [{station: start, d: 0, line: null}];
+    
+    while (pq.length > 0) {
+        pq.sort(function(a, b) { return a.d - b.d; });
+        var curr = pq.shift();
+        var u = curr.station, curLine = curr.line;
+        if (visited[u]) continue;
+        visited[u] = true;
+        if (u === end) break;
+        
+        for (var neighbor in GRAPH[u]) {
+            if (visited[neighbor]) continue;
+            var edgeLines = GRAPH[u][neighbor];
+            var bestTime = Infinity, bestLine = null;
+            for (var i = 0; i < edgeLines.length; i++) {
+                var li = edgeLines[i];
+                var t = STATION_TIME;
+                if (curLine !== null && curLine !== li) t += TRANSFER_PENALTY;
+                if (t < bestTime) { bestTime = t; bestLine = li; }
+            }
+            var alt = dist[u] + bestTime;
+            if (alt < dist[neighbor]) {
+                dist[neighbor] = alt;
+                prev[neighbor] = u;
+                prevLine[neighbor] = bestLine;
+                pq.push({station: neighbor, d: alt, line: bestLine});
+            }
+        }
+    }
+    
+    if (dist[end] === Infinity) return null;
+    
+    var path = [], lines = [], at = end;
+    while (at !== undefined) {
+        path.unshift(at);
+        if (prevLine[at]) lines.unshift(prevLine[at]);
+        at = prev[at];
+    }
+    
+    var transfers = [];
+    for (var i = 1; i < lines.length; i++) {
+        if (lines[i] !== lines[i - 1]) {
+            transfers.push({station: path[i], fromLine: lines[i - 1], toLine: lines[i]});
+        }
+    }
+    
+    return {path: path, time: dist[end], lines: lines, transfers: transfers, transferCount: transfers.length};
+}
+
+function calculateRoute() {
+    var from = document.getElementById("from-station").value.trim();
+    var to = document.getElementById("to-station").value.trim();
+    var resultCard = document.getElementById("result-card");
+    
+    if (!from || !to) {
+        resultCard.className = "result-card empty";
+        resultCard.innerHTML = "请选择起点和终点站";
+        return;
+    }
+    
+    if (from === to) {
+        resultCard.className = "result-card empty";
+        resultCard.innerHTML = "起点和终点不能相同";
+        return;
+    }
+    
+    var result = dijkstra(from, to);
+    if (!result) {
+        resultCard.className = "result-card empty";
+        resultCard.innerHTML = "未找到从 " + from + " 到 " + to + " 的路线";
+        return;
+    }
+    
+    resultCard.className = "result-card";
+    
+    var lineNames = [];
+    for (var i = 0; i < result.lines.length; i++) {
+        lineNames.push(LINE_NAMES[result.lines[i]] || result.lines[i]);
+    }
+    
+    var html = '<div style="display:flex;align-items:baseline;gap:10px"><span class="result-time">' + result.time + '</span><span style="font-size:18px;color:#888">分钟</span></div>';
+    html += '<div class="result-meta">';
+    html += '<span class="meta-tag">' + result.path.length + '站</span>';
+    html += '<span class="meta-tag">' + lineNames.join(" → ") + '</span>';
+    html += '<span class="meta-tag transfer">换乘' + result.transferCount + '次</span>';
+    html += '</div>';
+    
+    html += '<div class="path-viz"><h3>详细路径</h3>';
+    for (var i = 0; i < result.path.length; i++) {
+        var station = result.path[i];
+        var line = result.lines[i];
+        var isTransfer = result.transfers.some(function(t) { return t.station === station; });
+        var isStart = i === 0;
+        var isEnd = i === result.path.length - 1;
+        
+        html += '<div class="path-station' + (isTransfer ? ' transfer' : '') + '">';
+        
+        var iconClass = isStart ? ' start' : (isEnd ? ' end' : (isTransfer ? ' transfer' : ''));
+        var iconText = isStart ? '起' : (isEnd ? '终' : (isTransfer ? '⟳' : ''));
+        html += '<div class="station-icon' + iconClass + '">' + iconText + '</div>';
+        
+        html += '<div><div class="station-name">' + station + '</div>';
+        if (isTransfer) {
+            var transfer = result.transfers.find(function(t) { return t.station === station; });
+            html += '<div class="transfer-info">换乘 ' + LINE_NAMES[transfer.fromLine] + ' → ' + LINE_NAMES[transfer.toLine] + '</div>';
+        }
+        html += '</div>';
+        
+        html += '<span class="station-line">' + LINE_NAMES[line] + '</span></div>';
+        
+        if (i < result.path.length - 1) {
+            html += '<div class="path-arrow">↓</div>';
+        }
+    }
+    html += '</div>';
+    
+    resultCard.innerHTML = html;
+}
+
+function setupSearch() {
+    var input = document.getElementById("global-search");
+    var suggest = document.getElementById("search-suggest");
+    var allStations = Object.keys(STATION_POS).sort();
+    
+    input.addEventListener("input", function() {
+        var q = this.value.trim().toLowerCase();
+        if (q.length < 1) {
+            suggest.classList.remove("show");
+            return;
+        }
+        
+        var matches = [];
+        for (var i = 0; i < allStations.length; i++) {
+            if (allStations[i].toLowerCase().indexOf(q) >= 0) {
+                matches.push(allStations[i]);
+                if (matches.length >= 10) break;
+            }
+        }
+        
+        if (matches.length === 0) {
+            suggest.classList.remove("show");
+            return;
+        }
+        
+        var html = "";
+        for (var j = 0; j < matches.length; j++) {
+            var sName = matches[j];
+            var lines = STATION_POS[sName].lines;
+            html += '<div class="suggest-item" data-name="' + sName + '">' + sName;
+            for (var k = 0; k < lines.length; k++) {
+                var color = LINE_COLORS[lines[k]];
+                html += '<span class="line-badge" style="background:' + color + '">' + LINE_NAMES[lines[k]] + '</span>';
+            }
+            html += '</div>';
+        }
+        suggest.innerHTML = html;
+        suggest.classList.add("show");
+        
+        var items = suggest.querySelectorAll(".suggest-item");
+        for (var k = 0; k < items.length; k++) {
+            items[k].addEventListener("click", function() {
+                var name = this.getAttribute("data-name");
+                handleStationClick(name);
+                input.value = "";
+                suggest.classList.remove("show");
+            });
+        }
+    });
+    
+    input.addEventListener("blur", function() {
+        setTimeout(function() { suggest.classList.remove("show"); }, 200);
+    });
+    
+    var fromInput = document.getElementById("from-station");
+    var fromSuggest = document.getElementById("from-suggest");
+    setupInputSuggest(fromInput, fromSuggest);
+    
+    var toInput = document.getElementById("to-station");
+    var toSuggest = document.getElementById("to-suggest");
+    setupInputSuggest(toInput, toSuggest);
+}
+
+function setupInputSuggest(input, suggest) {
+    var allStations = Object.keys(STATION_POS).sort();
+    
+    input.addEventListener("input", function() {
+        var q = this.value.trim().toLowerCase();
+        if (q.length < 1) {
+            suggest.classList.remove("show");
+            return;
+        }
+        
+        var matches = [];
+        for (var i = 0; i < allStations.length; i++) {
+            if (allStations[i].toLowerCase().indexOf(q) >= 0) {
+                matches.push(allStations[i]);
+                if (matches.length >= 10) break;
+            }
+        }
+        
+        if (matches.length === 0) {
+            suggest.classList.remove("show");
+            return;
+        }
+        
+        var html = "";
+        for (var j = 0; j < matches.length; j++) {
+            var sName = matches[j];
+            var lines = STATION_POS[sName].lines;
+            html += '<div class="suggest-item" data-name="' + sName + '">' + sName;
+            for (var k = 0; k < lines.length; k++) {
+                var color = LINE_COLORS[lines[k]];
+                html += '<span class="line-badge" style="background:' + color + '">' + LINE_NAMES[lines[k]] + '</span>';
+            }
+            html += '</div>';
+        }
+        suggest.innerHTML = html;
+        suggest.classList.add("show");
+        
+        var items = suggest.querySelectorAll(".suggest-item");
+        for (var k = 0; k < items.length; k++) {
+            items[k].addEventListener("click", function() {
+                input.value = this.getAttribute("data-name");
+                suggest.classList.remove("show");
+                updateStationHighlight();
+                var fromInput = document.getElementById("from-station");
+                var toInput = document.getElementById("to-station");
+                if (fromInput.value && toInput.value) calculateRoute();
+            });
+        }
+    });
+    
+    input.addEventListener("blur", function() {
+        setTimeout(function() { suggest.classList.remove("show"); }, 200);
+    });
+}
+
+function swapStations() {
+    var f = document.getElementById("from-station");
+    var t = document.getElementById("to-station");
+    var tmp = f.value;
+    f.value = t.value;
+    t.value = tmp;
+    updateStationHighlight();
+    if (f.value && t.value) calculateRoute();
+}
+
+buildGraph();
+renderLinesList();
+setupSearch();
+
+document.getElementById("calc-btn").addEventListener("click", calculateRoute);
+document.getElementById("swap-btn").addEventListener("click", swapStations);
+</script>
+</body>
+</html>
